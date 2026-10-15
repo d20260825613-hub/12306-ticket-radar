@@ -8,3 +8,7 @@ runtime/
 node_modules/
 npm-debug.log*
 *.log
+
+# build output (rebuild with tools/build_exe.ps1)
+build/*.exe
+
