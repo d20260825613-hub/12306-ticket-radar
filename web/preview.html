@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>界面预览 · 12306 余票雷达</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  .preview-tag {
+    position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+    z-index: 200; background: var(--rail); color: #fff;
+    padding: 7px 15px; border-radius: 16px; font-size: 12px;
+    box-shadow: var(--shadow-2); opacity: .94; pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- 复刻 index.html 的结构，但数据来自下方 mock -->
+<div id="app">
+  <nav class="rail">
+    <div class="brand">
+      <div class="brand-mark">票</div>
+      <div class="brand-text"><b>余票雷达</b><span>界面预览</span></div>
+    </div>
+    <div class="nav">
+      <button class="nav-item active" data-view="radar">
+        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2.6a7.4 7.4 0 1 1 0 14.8 7.4 7.4 0 0 1 0-14.8zm0 2.2a5.2 5.2 0 1 0 0 10.4 5.2 5.2 0 0 0 0-10.4zm0 2.4a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6z"/></svg>
+        <span>余票雷达</span><em class="pill" id="pillRoutes">0</em>
+      </button>
+      <button class="nav-item" data-view="latency">
+        <svg viewBox="0 0 24 24"><path d="M3 17.5h2.6V21H3v-3.5zm5.1-4.2h2.6V21H8.1v-7.7zm5.2-4.1h2.6V21h-2.6V9.2zm5.1-5.2H21V21h-2.6V3z"/></svg>
+        <span>网络延迟</span><em class="pill" id="pillLatency">—</em>
+      </button>
+      <button class="nav-item" data-view="events">
+        <svg viewBox="0 0 24 24"><path d="M12 22a2.4 2.4 0 0 0 2.4-2.3H9.6A2.4 2.4 0 0 0 12 22zm6.8-5.9v-4.9a6.9 6.9 0 0 0-5.3-6.7V3.1a1.5 1.5 0 0 0-3 0v1.4a6.9 6.9 0 0 0-5.3 6.7v4.9L3.5 18a.7.7 0 0 0 .5 1.2h16a.7.7 0 0 0 .5-1.2l-1.7-1.9z"/></svg>
+        <span>提醒记录</span><em class="pill badge" id="pillEvents" hidden>0</em>
+      </button>
+      <button class="nav-item" data-view="settings">
+        <svg viewBox="0 0 24 24"><path d="M19.1 12.9a7.6 7.6 0 0 0 0-1.8l2-1.6a.5.5 0 0 0 .1-.6l-1.9-3.3a.5.5 0 0 0-.6-.2l-2.4 1a7.3 7.3 0 0 0-1.6-.9l-.4-2.6a.5.5 0 0 0-.5-.4h-3.8a.5.5 0 0 0-.5.4l-.4 2.6c-.6.2-1.1.6-1.6.9l-2.4-1a.5.5 0 0 0-.6.2L2.7 8.9a.5.5 0 0 0 .1.6l2 1.6a7.6 7.6 0 0 0 0 1.8l-2 1.6a.5.5 0 0 0-.1.6l1.9 3.3c.1.2.4.3.6.2l2.4-1c.5.4 1 .7 1.6.9l.4 2.6c0 .2.2.4.5.4h3.8c.2 0 .4-.2.5-.4l.4-2.6c.6-.2 1.1-.6 1.6-.9l2.4 1c.2.1.5 0 .6-.2l1.9-3.3a.5.5 0 0 0-.1-.6l-2-1.6zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
+        <span>设置</span>
+      </button>
+    </div>
+    <div class="rail-foot">
+      <div class="status-card" id="statusCard">
+        <div class="status-line"><i class="dot"></i><b id="statusText">初始化</b></div>
+        <div class="status-sub" id="statusSub">—</div>
+      </div>
+      <div class="disclaimer">只读查询 · 不登录 · 不代下单</div>
+    </div>
+  </nav>
+
+  <aside class="list">
+    <header class="list-head">
+      <div class="list-titles"><b id="listTitle">余票雷达</b><span id="listSub">—</span></div>
+      <button class="btn-icon" id="btnAdd" title="添加监控区间">
+        <svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5z"/></svg>
+      </button>
+    </header>
+    <div class="list-search" id="listSearchWrap">
+      <svg viewBox="0 0 24 24"><path d="M10 2a8 8 0 1 0 4.9 14.3l4.4 4.4 1.4-1.4-4.4-4.4A8 8 0 0 0 10 2zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12z"/></svg>
+      <input id="listSearch" placeholder="筛选区间" autocomplete="off">
+    </div>
+    <div class="list-body" id="listBody"></div>
+    <footer class="list-foot">
+      <button class="btn-primary" id="btnPoll">
+        <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/></svg>
+        <span>立即刷新</span>
+      </button>
+      <div class="foot-note" id="footNote">—</div>
+    </footer>
+  </aside>
+
+  <main class="main">
+    <header class="main-head">
+      <div class="main-titles"><b id="mainTitle">余票雷达</b><span id="mainSub">—</span></div>
+      <div class="main-actions" id="mainActions"></div>
+    </header>
+    <div class="main-body" id="mainBody"></div>
+  </main>
+</div>
+
+<div class="mask" id="modalMask" hidden>
+  <div class="modal">
+    <header class="modal-head">
+      <b>添加监控区间</b>
+      <button class="btn-icon" id="btnCloseModal">
+        <svg viewBox="0 0 24 24"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6z"/></svg>
+      </button>
+    </header>
+    <div class="modal-body">
+      <div class="station-row">
+        <div class="field ac-wrap">
+          <label>出发站</label>
+          <input id="inFrom" placeholder="输入站名 / 拼音 / 电报码" autocomplete="off">
+          <div class="ac" id="acFrom" hidden></div>
+        </div>
+        <button class="btn-swap" id="btnSwap">
+          <svg viewBox="0 0 24 24"><path d="M7.5 3 3 7.5l1.4 1.4L6.5 6.8V19h2V6.8l2.1 2.1L12 7.5 7.5 3zm9 18L21 16.5l-1.4-1.4-2.1 2.1V5h-2v12.2l-2.1-2.1L12 16.5 16.5 21z"/></svg>
+        </button>
+        <div class="field ac-wrap">
+          <label>到达站</label>
+          <input id="inTo" placeholder="输入站名 / 拼音 / 电报码" autocomplete="off">
+          <div class="ac" id="acTo" hidden></div>
+        </div>
+      </div>
+      <div class="field"><label>乘车日期</label><div class="chips" id="dateChips"></div></div>
+      <div class="field"><label>关注席位</label><div class="chips" id="seatChips"></div></div>
+      <div class="modal-error" id="modalError" hidden></div>
+    </div>
+    <footer class="modal-foot">
+      <button class="btn-ghost" id="btnCancel">取消</button>
+      <button class="btn-primary" id="btnSave">添加区间</button>
+    </footer>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<div class="preview-tag">界面预览 · 数据为演示用的构造样本，非真实余票</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   预览用的 fetch 拦截：只替换 /api/state，其余走真实接口。
+   这样可以在 12306 拦截余票查询期间，验证表格/筛选/排序渲染。
+   ══════════════════════════════════════════════════════════ */
+(function () {
+  const A = (n) => ({ state: 'available', count: n, text: n == null ? '有' : '有(' + n + ')' });
+  const N = () => ({ state: 'none', count: 0, text: '无' });
+  const W = () => ({ state: 'waitlist', count: null, text: '候补' });
+  const U = () => ({ state: 'unknown', count: null, text: '' });
+
+  const mk = (code, dep, arr, dur, from, to, seats) => ({
+    trainNo: '24000' + code, code, type: code[0],
+    fromCode: 'VNP', toCode: 'AOH',
+    fromName: from || '北京南', toName: to || '上海虹桥',
+    boardCode: 'VNP', boardName: from || '北京南', alightName: to || '上海虹桥',
+    departTime: dep, arriveTime: arr, duration: dur,
+    canBook: true, date: '2026-10-08',
+    seats: Object.assign(
+      { business: U(), first: U(), second: U(), topGrade: U(), softSleeper: U(),
+        deluxeSleeper: U(), hardSleeper: U(), softSeat: U(), hardSeat: U(),
+        noSeat: U(), preferredFirst: U() },
+      seats
+    ),
+  });
+
+  const rows = [
+    mk('G1',   '06:30', '11:24', '04:54', '北京南', '上海虹桥', { business: A(3), first: A(12), second: A() }),
+    mk('G3',   '06:52', '11:33', '04:41', '北京南', '上海',     { business: N(), first: N(), second: W() }),
+    mk('G531', '06:08', '12:04', '05:56', '北京南', '上海虹桥', { business: N(), first: N(), second: A(28) }),
+    mk('G5',   '07:40', '12:32', '04:52', '北京',   '上海',     { business: A(1), first: N(), second: A(46), noSeat: A() }),
+    mk('G7',   '08:00', '12:38', '04:38', '北京南', '上海虹桥', { business: N(), first: A(5), second: A(7) }),
+    mk('D311', '19:34', '07:12', '11:38', '北京南', '上海',     { softSleeper: A(4), deluxeSleeper: A(2), second: N(), hardSleeper: A(9) }),
+    mk('Z281', '19:10', '09:22', '14:12', '北京',   '上海',     { softSleeper: A(2), hardSleeper: A(18), hardSeat: A(60), noSeat: A() }),
+    mk('T109', '20:05', '11:00', '14:55', '北京',   '上海',     { hardSleeper: A(6), hardSeat: W() }),
+  ];
+
+  const now = Date.now();
+  const mockState = {
+    config: {
+      routes: [
+        { from: '北京南', to: '上海虹桥', dateOffset: 45, seats: ['second', 'first', 'business'] },
+        { from: '北京', to: '上海', dateOffset: 45, seats: ['second', 'first', 'hardSleeper'] },
+      ],
+      intervalSec: 60, rushIntervalSec: 20, dedupeWindowMin: 10,
+      quietHours: { start: 23, end: 6 },
+      wechat: { enabled: true, channel: 'pushplus', token: '' },
+      httpPort: 12308,
+    },
+    stationCount: 3384,
+    diagnostics: {
+      lastRunAt: now - 42000, lastOkAt: now - 42000, lastError: null,
+      queryEndpoint: 'queryG', blocked: false, cycles: 37, consecutiveFailures: 0,
+    },
+    latency: Array.from({ length: 60 }, (_, i) => ({
+      ts: now - (59 - i) * 60000,
+      kind: i % 3 === 0 ? 'query' : 'static',
+      ok: true,
+      dns: 18 + (i % 7), tcp: 30 + (i % 9), tls: 62 + ((i * 7) % 40),
+      ttfb: (i % 3 === 0 ? 240 : 96) + ((i * 13) % 70),
+      total: 400 + ((i * 17) % 160), error: null,
+    })),
+    events: [
+      { ts: now - 120000, kind: 'becameAvailable', trainCode: 'G531', seatKey: 'second', seatName: '二等座',
+        text: 'G531 06:08开 二等座 无票 → 有(28)', route: '北京南→上海虹桥', date: '2026-10-08' },
+      { ts: now - 900000, kind: 'countIncreased', trainCode: 'G1', seatKey: 'first', seatName: '一等座',
+        text: 'G1 06:30开 一等座 余票增加至 12', route: '北京南→上海虹桥', date: '2026-10-08' },
+      { ts: now - 3600000 * 5, kind: 'newTrain', trainCode: 'D311', seatKey: 'softSleeper', seatName: '软卧',
+        text: 'D311 19:34开 新增可购（软卧）', route: '北京南→上海', date: '2026-10-08' },
+      { ts: now - 86400000 - 600000, kind: 'becameAvailable', trainCode: 'Z281', seatKey: 'hardSleeper', seatName: '硬卧',
+        text: 'Z281 19:10开 硬卧 无票 → 有(18)', route: '北京→上海', date: '2026-10-07' },
+    ],
+    unread: 2,
+    routes: [
+      { raw: { from: '北京南', to: '上海虹桥', dateOffset: 45, seats: ['second', 'first', 'business'] },
+        from: '北京南', to: '上海虹桥', fromCode: 'VNP', toCode: 'AOH',
+        date: '2026-10-08', rows, updatedAt: now - 42000, endpoint: 'queryG' },
+      { raw: { from: '北京', to: '上海', dateOffset: 45, seats: ['second', 'first', 'hardSleeper'] },
+        from: '北京', to: '上海', fromCode: 'BJP', toCode: 'SHH',
+        date: '2026-10-08', rows: rows.slice(2), updatedAt: now - 42000, endpoint: 'queryG' },
+    ],
+    quietNow: false, rushNow: false, intervalSec: 60, serverTime: now,
+  };
+
+  const realFetch = window.fetch.bind(window);
+  window.fetch = function (url, opts) {
+    if (typeof url === 'string' && url.indexOf('/api/state') === 0) {
+      return Promise.resolve(new Response(JSON.stringify(mockState), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      }));
+    }
+    if (typeof url === 'string' && url.indexOf('/api/') === 0 && url.indexOf('/api/stations') !== 0) {
+      /* 预览页不触发真实采集/推送，避免副作用 */
+      return Promise.resolve(new Response(JSON.stringify({ ok: true }), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      }));
+    }
+    return realFetch(url, opts);
+  };
+})();
+</script>
+<script src="/app.js"></script>
+</body>
+</html>

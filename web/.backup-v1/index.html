@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12306 余票雷达</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- 左侧导航栏 -->
+  <nav class="rail">
+    <div class="rail-avatar">票</div>
+    <button class="rail-btn active" data-view="radar" title="余票雷达">
+      <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 3.2 1.1 4.6 4.6 1.1-4.6 1.1L12 16.6 10.9 12 6.3 10.9 10.9 9.8 12 5.2z"/></svg>
+    </button>
+    <button class="rail-btn" data-view="latency" title="网络延迟">
+      <svg viewBox="0 0 24 24"><path d="M3 17h3v4H3v-4zm5-5h3v9H8v-9zm5-4h3v13h-3V8zm5-5h3v18h-3V3z"/></svg>
+    </button>
+    <button class="rail-btn" data-view="events" title="提醒记录">
+      <svg viewBox="0 0 24 24"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6v-5a7 7 0 0 0-5.5-6.83V3a1.5 1.5 0 0 0-3 0v1.17A7 7 0 0 0 5 11v5l-1.7 2.1a1 1 0 0 0 .79 1.6h15.82a1 1 0 0 0 .79-1.6L19 16z"/></svg>
+      <span class="badge" id="eventBadge" hidden>0</span>
+    </button>
+    <button class="rail-btn" data-view="settings" title="设置">
+      <svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.5 7.5 0 0 0 .06-.94 7.5 7.5 0 0 0-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.3 7.3 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.56-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.65 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.62-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.3.6.22l2.39-.96c.5.38 1.04.7 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.59-.24 1.13-.56 1.63-.94l2.39.96c.22.08.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
+    </button>
+    <div class="rail-spacer"></div>
+    <div class="rail-status" id="railStatus" title="状态">
+      <span class="dot"></span>
+    </div>
+  </nav>
+
+  <!-- 中间列表栏 -->
+  <aside class="list">
+    <header class="list-head">
+      <div class="list-title" id="listTitle">余票雷达</div>
+      <button class="icon-btn" id="btnAdd" title="添加监控区间">＋</button>
+    </header>
+    <div class="list-body" id="listBody"></div>
+    <footer class="list-foot">
+      <button class="btn-primary" id="btnPoll">立即刷新</button>
+      <div class="foot-note" id="footNote">—</div>
+    </footer>
+  </aside>
+
+  <!-- 右侧主区 -->
+  <main class="main">
+    <header class="main-head">
+      <div>
+        <div class="main-title" id="mainTitle">余票雷达</div>
+        <div class="main-sub" id="mainSub">—</div>
+      </div>
+      <div class="main-actions" id="mainActions"></div>
+    </header>
+
+    <div class="main-body" id="mainBody">
+      <div class="banner" id="banner" hidden></div>
+      <div class="empty">加载中…</div>
+    </div>
+  </main>
+</div>
+
+<!-- 新增监控区间 弹层 -->
+<div class="modal-mask" id="modalMask" hidden>
+  <div class="modal">
+    <div class="modal-head">添加监控区间</div>
+    <div class="modal-body">
+      <label class="field">
+        <span>出发站</span>
+        <input id="inFrom" placeholder="如 北京南" autocomplete="off">
+        <em class="hint" id="hintFrom"></em>
+      </label>
+      <label class="field">
+        <span>到达站</span>
+        <input id="inTo" placeholder="如 上海虹桥" autocomplete="off">
+        <em class="hint" id="hintTo"></em>
+      </label>
+      <label class="field">
+        <span>乘车日期</span>
+        <select id="inOffset">
+          <option value="1">明天</option>
+          <option value="2">后天</option>
+          <option value="7">7 天后</option>
+          <option value="15">15 天后</option>
+          <option value="30">30 天后</option>
+          <option value="45" selected>45 天后（预售上限）</option>
+        </select>
+      </label>
+      <div class="field">
+        <span>关注席位</span>
+        <div class="checks" id="seatChecks"></div>
+      </div>
+      <div class="modal-error" id="modalError" hidden></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" id="btnCancel">取消</button>
+      <button class="btn-primary" id="btnSave">添加</button>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

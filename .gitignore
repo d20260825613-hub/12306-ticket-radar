@@ -1,0 +1,10 @@
+# 运行时数据：配置可能含微信推送 token，状态含个人查询记录
+data/config.json
+data/state.json
+data/port.txt
+runtime/
+
+# 依赖与日志
+node_modules/
+npm-debug.log*
+*.log
