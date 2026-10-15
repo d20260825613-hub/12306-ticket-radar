@@ -421,6 +421,37 @@ test('请求最小间隔生效（串行两次请求不小于设定间隔）', as
   // 该用例是异步的，放到最后的 await 段执行
 });
 
+/* ══════════════════ 轮询间隔钳位 ══════════════════ */
+
+section('轮询间隔钳位');
+
+test('越界与非法间隔被收敛到可用范围', () => {
+  // 网页端写进来的 1e21 会让 setTimeout 溢出、被 Node 折算成 1ms，引擎于是
+  // 以约 70 次/秒的频率猛打上游。写侧拒绝 + 读侧钳位，两道都要在。
+  assert.strictEqual(state.clampIntervalSec(1e21), state.MAX_INTERVAL_SEC);
+  assert.strictEqual(state.clampIntervalSec(0), state.MIN_INTERVAL_SEC);
+  assert.strictEqual(state.clampIntervalSec(-5), state.MIN_INTERVAL_SEC);
+  assert.strictEqual(state.clampIntervalSec(1e9), state.MAX_INTERVAL_SEC);
+  assert.strictEqual(state.clampIntervalSec(60), 60);
+  assert.strictEqual(state.clampIntervalSec('abc'), state.DEFAULT_CONFIG.intervalSec);
+  assert.strictEqual(state.clampIntervalSec(NaN), state.DEFAULT_CONFIG.intervalSec);
+  assert.strictEqual(state.clampIntervalSec(undefined), state.DEFAULT_CONFIG.intervalSec);
+});
+
+test('钳位后的间隔换算成毫秒一定落在 setTimeout 的安全范围', () => {
+  for (const v of [1e21, -1e21, Infinity, -Infinity, 1e300, Math.pow(2, 60)]) {
+    const ms = state.clampIntervalSec(v) * 1000;
+    assert.ok(ms >= 10 * 1000, '延时 ' + ms + ' 太短');
+    assert.ok(ms <= 2147483647, '延时 ' + ms + ' 超出 32 位 setTimeout 上限');
+  }
+});
+
+test('畸形请求目标会让 new URL 抛错（服务端必须自己兜住）', () => {
+  // 锁住崩溃的成因：`GET /\` 不是合法 URL。异常一旦冒出请求处理器，未捕获的
+  // 异常就会打死整个进程 —— 所以 server.js 里那句 new URL 必须在 try 内。
+  assert.throws(() => new URL('/\\', 'http://127.0.0.1'), /Invalid URL/);
+});
+
 /* ══════════════════ 结论 ══════════════════ */
 
 (async () => {
@@ -437,6 +468,75 @@ test('请求最小间隔生效（串行两次请求不小于设定间隔）', as
   } else {
     fail++;
     console.log('  FAIL 最小间隔未生效，实测 ' + elapsed + 'ms');
+  }
+
+  // 异步用例：一个畸形请求不该打死服务
+  section('服务端健壮性（异步）');
+  const { spawn } = require('child_process');
+  const net = require('net');
+  const port = 13000 + Math.floor(Math.random() * 2000);
+  const child = spawn(process.execPath, [path.join(ROOT, 'src', 'server.js')], {
+    env: Object.assign({}, process.env, { PORT: String(port), NO_OPEN: '1' }),
+    stdio: 'ignore',
+  });
+
+  const rawGet = (target) =>
+    new Promise((resolve, reject) => {
+      const s = net.connect(port, '127.0.0.1', () => {
+        // Node 的 http 客户端不会构造这种请求目标，只能用裸 socket 发
+        s.write('GET ' + target + ' HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n');
+      });
+      let buf = '';
+      s.on('data', (d) => {
+        buf += d;
+      });
+      s.on('end', () => resolve(buf));
+      s.on('error', reject);
+      setTimeout(() => {
+        s.destroy();
+        resolve(buf);
+      }, 3000);
+    });
+
+  try {
+    // 等端口真的开起来，而不是赌一个固定睡眠
+    let up = false;
+    for (let i = 0; i < 40 && !up; i++) {
+      up = await new Promise((resolve) => {
+        const s = net.connect(port, '127.0.0.1');
+        s.on('connect', () => {
+          s.destroy();
+          resolve(true);
+        });
+        s.on('error', () => resolve(false));
+      });
+      if (!up) await new Promise((r) => setTimeout(r, 150));
+    }
+    if (!up) throw new Error('服务未在 6 秒内监听 ' + port);
+
+    const response = await rawGet('/\\');
+    if (child.exitCode === null && /^HTTP\/1\.1 400/.test(response)) {
+      pass++;
+      console.log('  ok   畸形请求目标得到 400，且进程仍然存活');
+    } else {
+      fail++;
+      console.log('  FAIL 畸形请求目标: 存活=' + (child.exitCode === null) + ' 响应=' + JSON.stringify(response.slice(0, 40)));
+    }
+
+    // 正常请求仍然能用，确认不是把服务打残了
+    const okResponse = await rawGet('/api/state');
+    if (/^HTTP\/1\.1 200/.test(okResponse)) {
+      pass++;
+      console.log('  ok   畸形请求之后正常请求仍是 200');
+    } else {
+      fail++;
+      console.log('  FAIL 畸形请求之后正常请求异常: ' + JSON.stringify(okResponse.slice(0, 40)));
+    }
+  } catch (e) {
+    fail++;
+    console.log('  FAIL 服务端健壮性: ' + e.message);
+  } finally {
+    child.kill();
   }
 
   console.log('\n══════════════════════════════');

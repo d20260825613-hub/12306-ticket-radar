@@ -1,6 +1,6 @@
 {
   "name": "ticket-radar-12306",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "12306 余票雷达 - 只读查询与提醒，下单请走官方渠道",
   "type": "commonjs",
@@ -10,7 +10,8 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "probe": "node tools/probe.js",
-    "selftest": "node tools/selftest.js"
+    "test": "node tools/test_core.js",
+    "selftest": "node tools/test_core.js",
+    "probe": "node tools/probe_endpoints.js"
   }
 }

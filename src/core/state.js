@@ -360,9 +360,31 @@ function isRushWindow() {
   return h >= 8 && h < 18 && m < 3;
 }
 
+/**
+ * 轮询间隔的合理闭区间（秒）。
+ * 低于 10 秒对余票库没有意义，只会抬高风控风险；超过一天等于没在监控。
+ */
+const MIN_INTERVAL_SEC = 10;
+const MAX_INTERVAL_SEC = 86400;
+/** 通知去重窗口的上限（分钟）。 */
+const MAX_DEDUPE_WINDOW_MIN = 1440;
+
+/**
+ * 把任意来源的间隔值收敛到可用范围。
+ *
+ * 必须在读侧再兜一道：intervalSec 会被直接乘 1000 交给 setTimeout，而
+ * 1e21 这类值会让延时溢出成 32 位整数、被 Node 折算成 1ms —— 引擎于是以
+ * 约 70 次/秒的频率猛打上游。非有限值一律回落到默认间隔。
+ */
+function clampIntervalSec(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return DEFAULT_CONFIG.intervalSec;
+  return Math.min(Math.max(Math.round(n), MIN_INTERVAL_SEC), MAX_INTERVAL_SEC);
+}
+
 function currentIntervalSec() {
   const cfg = config || DEFAULT_CONFIG;
-  return isRushWindow() ? cfg.rushIntervalSec : cfg.intervalSec;
+  return isRushWindow() ? clampIntervalSec(cfg.rushIntervalSec) : clampIntervalSec(cfg.intervalSec);
 }
 
 module.exports = {
@@ -370,6 +392,10 @@ module.exports = {
   STATE_FILE,
   CONFIG_FILE,
   DEFAULT_CONFIG,
+  MIN_INTERVAL_SEC,
+  MAX_INTERVAL_SEC,
+  MAX_DEDUPE_WINDOW_MIN,
+  clampIntervalSec,
   loadConfig,
   saveConfig,
   loadState,

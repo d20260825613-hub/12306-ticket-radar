@@ -260,7 +260,17 @@ function stationIndex() {
 }
 
 const server = http.createServer(async (req, res) => {
-  const u = new URL(req.url, 'http://127.0.0.1');
+  // 解析请求目标必须自己兜住。这句原本在 try 之外，一个畸形 URL 抛出的异常
+  // 会冒出请求处理器，而未捕获的异常直接杀掉整个进程 —— 一个坏 URL 就能
+  // 打死一个设计成连续跑几周的盯票服务。
+  let u;
+  try {
+    u = new URL(req.url, 'http://127.0.0.1');
+  } catch {
+    res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('bad request\n');
+    return;
+  }
   const p = u.pathname;
 
   try {
@@ -353,9 +363,22 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/config' && req.method === 'POST') {
       const body = await readBody(req);
       const cfg = state.getConfig();
-      for (const k of ['intervalSec', 'rushIntervalSec', 'rushWindowEnabled', 'dedupeWindowMin']) {
-        if (body[k] !== undefined) cfg[k] = body[k];
+      // 网页里填的数字是不可信输入，而且它直接决定定时器延时：1e21 会让
+      // setTimeout 溢出、被 Node 折算成 1ms，引擎于是以约 70 次/秒的节奏
+      // 猛打上游。写侧拒绝非数字并把越界值收敛到可用范围，读侧另有一道兜底。
+      for (const [k, min, max] of [
+        ['intervalSec', state.MIN_INTERVAL_SEC, state.MAX_INTERVAL_SEC],
+        ['rushIntervalSec', state.MIN_INTERVAL_SEC, state.MAX_INTERVAL_SEC],
+        ['dedupeWindowMin', 0, state.MAX_DEDUPE_WINDOW_MIN],
+      ]) {
+        if (body[k] === undefined) continue;
+        const v = Number(body[k]);
+        if (!Number.isFinite(v)) {
+          return sendJson(res, 400, { ok: false, error: `${k} 必须是数字` });
+        }
+        cfg[k] = Math.min(Math.max(Math.round(v), min), max);
       }
+      if (body.rushWindowEnabled !== undefined) cfg.rushWindowEnabled = Boolean(body.rushWindowEnabled);
       if (body.quietHours) cfg.quietHours = Object.assign({}, cfg.quietHours, body.quietHours);
       if (body.notifyOn) cfg.notifyOn = Object.assign({}, cfg.notifyOn, body.notifyOn);
       if (body.wechat) {
